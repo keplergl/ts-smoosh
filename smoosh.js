@@ -175,18 +175,11 @@ function enrichJs(jsFile, dts) {
                     p.dotDotDotToken,
                     p.name,
                     p.questionToken,
-                    typeSource.parameters[i].type.typeName
-                      ? // If the node has a name, we clone it. Referencing the type nodes from the
-                        // d.ts file directly seems to break code comments.
-                        ts.factory.createTypeReferenceNode(
-                          typeSource.parameters[i].type.typeName.escapedText
-                        )
-                      : // this should be a built-in type (like `string`, `number`, etc.)
-                        typeSource.parameters[i].type,
+                    cloneType(typeSource.parameters[i]),
                     p.initializer
                   )
                 ),
-                typeSource.type,
+                cloneType(typeSource),
                 node.body
               );
             }
@@ -217,18 +210,11 @@ function enrichJs(jsFile, dts) {
                         p.dotDotDotToken,
                         p.name,
                         p.questionToken,
-                        typeSource.parameters[i].type.typeName
-                          ? // If the node has a name, we clone it. Referencing the type nodes from the
-                            // d.ts file directly seems to break code comments.
-                            ts.factory.createTypeReferenceNode(
-                              typeSource.parameters[i].type.typeName.escapedText
-                            )
-                          : // this should be a built-in type (like `string`, `number`, etc.)
-                            typeSource.parameters[i].type,
+                        cloneType(typeSource.parameters[i]),
                         p.initializer
                       )
                     ),
-                    typeSource.type,
+                    cloneType(typeSource),
                     node.initializer.equalsGreaterThanToken,
                     node.initializer.body
                   )
@@ -280,6 +266,15 @@ function enrichJs(jsFile, dts) {
   };
 
   return ts.transform(parsed, [transformer]).transformed[0];
+}
+
+function cloneType(node) {
+  return node.type.typeName
+    ? // If the node has a name, we clone it. Referencing the type nodes from the
+      // d.ts file directly seems to break code comments.
+      ts.factory.createTypeReferenceNode(node.type.typeName.escapedText)
+    : // this should be a built-in type (like `string`, `number`, etc.)
+      node.type;
 }
 
 function getIdentifierName(node) {
