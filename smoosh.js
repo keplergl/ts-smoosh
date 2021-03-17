@@ -209,7 +209,25 @@ function enrichJs(jsFile, dts) {
                     node.initializer,
                     node.initializer.modifiers,
                     typeSource.typeParameters,
-                    typeSource.parameters,
+                    node.initializer.parameters.map((p, i) =>
+                      ts.factory.updateParameterDeclaration(
+                        p,
+                        p.decorators,
+                        p.modifiers,
+                        p.dotDotDotToken,
+                        p.name,
+                        p.questionToken,
+                        typeSource.parameters[i].type.typeName
+                          ? // If the node has a name, we clone it. Referencing the type nodes from the
+                            // d.ts file directly seems to break code comments.
+                            ts.factory.createTypeReferenceNode(
+                              typeSource.parameters[i].type.typeName.escapedText
+                            )
+                          : // this should be a built-in type (like `string`, `number`, etc.)
+                            typeSource.parameters[i].type,
+                        p.initializer
+                      )
+                    ),
                     typeSource.type,
                     node.initializer.equalsGreaterThanToken,
                     node.initializer.body
