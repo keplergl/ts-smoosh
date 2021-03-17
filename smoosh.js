@@ -19,8 +19,8 @@ function smoosh(base) {
   const outputFile = `./${base}.${suffix}`;
 
   // @ts-ignore
-  // fs.writeFileSync(outputFile, prettier.format(cleanedSrc, prettierOptions), 'utf8');
-  fs.writeFileSync(outputFile, cleanedSrc, 'utf8');
+  fs.writeFileSync(outputFile, prettier.format(cleanedSrc, prettierOptions), 'utf8');
+  // fs.writeFileSync(outputFile, cleanedSrc, 'utf8');
   log.logSuccess(`Smooshed ${outputFile}`);
 }
 
@@ -66,13 +66,17 @@ function parseDts(dtsFile) {
   const aggregateDecl = statement => {
     const kind = ts.SyntaxKind[statement.kind];
 
-    if (kind === 'TypeAliasDeclaration' || kind === 'InterfaceDeclaration') {
+    if (kind === 'TypeAliasDeclaration') {
       declarations[getIdentifierName(statement)] = statement.type;
       // console.log(statement && statement.name && statement.name.escapedText)
-      typeAliases.push(statement.name);
+      typeAliases.push(statement);
       return;
     }
-
+    if (kind === 'InterfaceDeclaration') {
+      declarations[getIdentifierName(statement)] = statement;
+      typeAliases.push(statement);
+      return;
+    }
     if (kind === 'ImportDeclaration') {
       imports.push(statement);
       return;
@@ -86,10 +90,6 @@ function parseDts(dtsFile) {
       const message = `Unexpected statement kind "${kind}" in type definition file "${dtsFile}"`;
       return console.warn(message);
     } else {
-      // console.log(statement && statement.name && statement.name.escapedText)
-      if (statement && statement.name && statement.name.escapedText === 'ProjectState') {
-        console.log(kind)
-      }
       declarations[getIdentifierName(statement)] = statement;
     }
   };
@@ -275,6 +275,9 @@ function enrichJs(jsFile, dts) {
 }
 
 function cloneType(node) {
+  if (!node.type) {
+    console.log(node)
+  }
   return node.type.typeName
     ? // If the node has a name, we clone it. Referencing the type nodes from the
       // d.ts file directly seems to break code comments.
@@ -298,7 +301,7 @@ function withoutJSDoc(text) {
 // HACK export declare type is not allowed in ts prettier
 function replaceExportDeclareType(text) {
   const reT = /^export declare type /gm;
-  const reI = /^export declate interface /gm;
+  const reI = /^export declare interface /gm;
   return text.replace(reT, 'export type ').replace(reI, 'export interface ');
 }
 
