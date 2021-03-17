@@ -66,11 +66,13 @@ function parseDts(dtsFile) {
   const aggregateDecl = statement => {
     const kind = ts.SyntaxKind[statement.kind];
 
-    if (kind === 'TypeAliasDeclaration') {
+    if (kind === 'TypeAliasDeclaration' || kind === 'InterfaceDeclaration') {
       declarations[getIdentifierName(statement)] = statement.type;
-      typeAliases.push(statement);
+      // console.log(statement && statement.name && statement.name.escapedText)
+      typeAliases.push(statement.name);
       return;
     }
+
     if (kind === 'ImportDeclaration') {
       imports.push(statement);
       return;
@@ -84,6 +86,10 @@ function parseDts(dtsFile) {
       const message = `Unexpected statement kind "${kind}" in type definition file "${dtsFile}"`;
       return console.warn(message);
     } else {
+      // console.log(statement && statement.name && statement.name.escapedText)
+      if (statement && statement.name && statement.name.escapedText === 'ProjectState') {
+        console.log(kind)
+      }
       declarations[getIdentifierName(statement)] = statement;
     }
   };
@@ -291,8 +297,8 @@ function withoutJSDoc(text) {
 
 // HACK export declare type is not allowed in ts prettier
 function replaceExportDeclareType(text) {
-  const reT = /^export declare type /g;
-  const reI = /^export declate interface /g;
+  const reT = /^export declare type /gm;
+  const reI = /^export declate interface /gm;
   return text.replace(reT, 'export type ').replace(reI, 'export interface ');
 }
 
