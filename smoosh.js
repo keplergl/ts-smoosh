@@ -13,10 +13,14 @@ const suffix = 'ts';
  */
 function smoosh(base) {
   const smooshedSrc = returnSmooshed(base);
+
+  // cleanup
+  const cleanedSrc = replaceExportDeclareType(smooshedSrc);
   const outputFile = `./${base}.${suffix}`;
 
   // @ts-ignore
-  fs.writeFileSync(outputFile, prettier.format(smooshedSrc, prettierOptions), 'utf8');
+  fs.writeFileSync(outputFile, prettier.format(cleanedSrc, prettierOptions), 'utf8');
+  // fs.writeFileSync(outputFile, cleanedSrc, 'utf8');
   log.logSuccess(`Smooshed ${outputFile}`);
 }
 
@@ -34,19 +38,15 @@ function returnSmooshed(base) {
 
   const resultFile = ts.createSourceFile(
     outputFile,
-    "",
+    '',
     ts.ScriptTarget.Latest,
     false,
     ts.ScriptKind.TSX
   );
 
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+  const printer = ts.createPrinter({newLine: ts.NewLineKind.LineFeed});
 
-  const smooshedSrc = printer.printNode(
-    ts.EmitHint.Unspecified,
-    enrichedJsNode,
-    resultFile
-  );
+  const smooshedSrc = printer.printNode(ts.EmitHint.Unspecified, enrichedJsNode, resultFile);
 
   return withoutJSDoc(smooshedSrc);
 }
@@ -54,7 +54,7 @@ function returnSmooshed(base) {
 function parseDts(dtsFile) {
   const parsed = ts.createSourceFile(
     dtsFile,
-    fs.readFileSync(dtsFile, "utf8"),
+    fs.readFileSync(dtsFile, 'utf8'),
     ts.ScriptTarget.Latest
   );
 
@@ -63,24 +63,24 @@ function parseDts(dtsFile) {
   const declarations = {};
   const imports = [];
 
-  const aggregateDecl = (statement) => {
+  const aggregateDecl = statement => {
     const kind = ts.SyntaxKind[statement.kind];
 
-    if (kind === "TypeAliasDeclaration") {
+    if (kind === 'TypeAliasDeclaration') {
       declarations[getIdentifierName(statement)] = statement.type;
       typeAliases.push(statement);
       return;
     }
-    if (kind === "ImportDeclaration") {
+    if (kind === 'ImportDeclaration') {
       imports.push(statement);
       return;
     }
 
-    if (kind === "FirstStatement") {
+    if (kind === 'FirstStatement') {
       return statement.declarationList.declarations.map(aggregateDecl);
     }
 
-    if (!kind.endsWith("Declaration")) {
+    if (!kind.endsWith('Declaration')) {
       const message = `Unexpected statement kind "${kind}" in type definition file "${dtsFile}"`;
       return console.warn(message);
     } else {
@@ -90,30 +90,28 @@ function parseDts(dtsFile) {
 
   parsed.statements.forEach(aggregateDecl);
 
-  return { typeAliases, declarations, imports };
+  return {typeAliases, declarations, imports};
 }
 
 function enrichJs(jsFile, dts) {
   const parsed = ts.createSourceFile(
     jsFile,
-    fs.readFileSync(jsFile, "utf8"),
+    fs.readFileSync(jsFile, 'utf8'),
     ts.ScriptTarget.Latest
   );
 
-  const findSource = (node) => {
+  const findSource = node => {
     let typeSource = null;
 
     // First, search for a jsdoc tag with the type, like:
     // @type {typeof import('./b').Noop}
     if (node.jsDoc) {
-      const typeTag = (node.jsDoc[0].tags || []).find(
-        (tag) => tag.tagName.escapedText === "type"
-      );
+      const typeTag = (node.jsDoc[0].tags || []).find(tag => tag.tagName.escapedText === 'type');
       if (typeTag) {
         const fileName = typeTag.typeExpression.type.argument.literal.text;
         const identifier = typeTag.typeExpression.type.qualifier.escapedText;
         const dir = path.dirname(jsFile);
-        const fullPath = path.resolve(dir, fileName + ".d.ts");
+        const fullPath = path.resolve(dir, fileName + '.d.ts');
         const importedDts = parseDts(fullPath);
         const importedType = importedDts.declarations[identifier];
         if (!importedType) {
@@ -134,40 +132,33 @@ function enrichJs(jsFile, dts) {
     return typeSource;
   };
 
-  const transformer = (context) => {
+  const transformer = context => {
     let importsToFind = [];
-    return (rootNode) => {
+    return rootNode => {
       function visit(node) {
         const kind = ts.SyntaxKind[node.kind];
         importsToFind = importsToFind.concat(
           (node.jsDoc || [])
-            .flatMap((d) =>
-              (d.tags || []).filter((tag) => tag.tagName.escapedText === 'typedef')
-            )
-            .flatMap((typeTag) => {
-              const fileName =
-                typeTag.typeExpression.type.argument.literal.text;
-              const identifier =
-                typeTag.typeExpression.type.qualifier.escapedText;
+            .flatMap(d => (d.tags || []).filter(tag => tag.tagName.escapedText === 'typedef'))
+            .flatMap(typeTag => {
+              const fileName = typeTag.typeExpression.type.argument.literal.text;
+              const identifier = typeTag.typeExpression.type.qualifier.escapedText;
 
               // skip adding imports for js/d.ts pairs. We automatically merge imports
               // for that below.
-              if (
-                jsFile ===
-                path.join(path.dirname(jsFile), fileName) + '.js'
-              ) {
+              if (jsFile === path.join(path.dirname(jsFile), fileName) + '.js') {
                 return [];
               }
 
-              return [{ fileName, identifier }];
+              return [{fileName, identifier}];
             })
         );
 
         //
-        if (kind.endsWith("Declaration")) {
-          if (kind === "FunctionDeclaration") {
+        if (kind.endsWith('Declaration')) {
+          if (kind === 'FunctionDeclaration') {
             const typeSource = findSource(node);
-            delete node.jsDoc
+            delete node.jsDoc;
             if (typeSource) {
               return ts.factory.updateFunctionDeclaration(
                 node,
@@ -200,14 +191,14 @@ function enrichJs(jsFile, dts) {
               );
             }
             return node;
-          } else if (kind === "VariableDeclaration") {
+          } else if (kind === 'VariableDeclaration') {
             const typeSource = findSource(node);
             if (typeSource) {
               // Account for the case where the d.ts file is a fn decl,
               // but this file is a variable decl
               if (
-                ts.SyntaxKind[typeSource.kind] === "FunctionDeclaration" &&
-                ts.SyntaxKind[node.initializer.kind] === "ArrowFunction"
+                ts.SyntaxKind[typeSource.kind] === 'FunctionDeclaration' &&
+                ts.SyntaxKind[node.initializer.kind] === 'ArrowFunction'
               ) {
                 return ts.factory.updateVariableDeclaration(
                   node,
@@ -246,7 +237,7 @@ function enrichJs(jsFile, dts) {
 
       // TODO: should we dedupe/combine these imports?
 
-      const importsForTypes = importsToFind.map(({ identifier, fileName }) =>
+      const importsForTypes = importsToFind.map(({identifier, fileName}) =>
         ts.factory.createImportDeclaration(
           undefined,
           undefined,
@@ -254,10 +245,7 @@ function enrichJs(jsFile, dts) {
             true,
             undefined,
             ts.factory.createNamedImports([
-              ts.factory.createImportSpecifier(
-                undefined,
-                ts.factory.createIdentifier(identifier)
-              ),
+              ts.factory.createImportSpecifier(undefined, ts.factory.createIdentifier(identifier))
             ])
           ),
           ts.factory.createStringLiteral(fileName)
@@ -268,7 +256,7 @@ function enrichJs(jsFile, dts) {
         ...dts.imports,
         ...importsForTypes,
         ...dts.typeAliases,
-        ...newRoot.statements,
+        ...newRoot.statements
       ]);
     };
   };
@@ -288,7 +276,13 @@ function withoutJSDoc(text) {
   return text.replace(RE, '');
 }
 
+// HACK export declare type is not allowed in ts prettier
+function replaceExportDeclareType(text) {
+  const re = /export declare type /g;
+  return text.replace(re, 'export type ');
+}
+
 module.exports = {
   smoosh,
-  returnSmooshed,
+  returnSmooshed
 };
