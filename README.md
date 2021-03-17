@@ -29,4 +29,5 @@ Here are articles and docs I that were helpful when writing this script.
 - [Using the Compiler API](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API)
 - [Blog post about using TS's parser directly](https://medium.com/allenhwkim/how-to-parse-typescript-from-source-643387971f4e)
 - [TypeScript compiler APIs revisited](https://blog.scottlogic.com/2017/05/02/typescript-compiler-api-revisited.html)
+- [Dealing with Comment Nodes in the TypeScript Compiler API](https://quramy.medium.com/manipulate-comments-with-typescript-api-73d5f1d43d7f)
 - [TypeScript API Playground on Glitch](https://typescript-api-playground.glitch.me/#example=Transformation%203)
