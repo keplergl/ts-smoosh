@@ -19,8 +19,8 @@ function smoosh(base) {
   const outputFile = `./${base}.${suffix}`;
 
   // @ts-ignore
-  fs.writeFileSync(outputFile, prettier.format(cleanedSrc, prettierOptions), 'utf8');
-  // fs.writeFileSync(outputFile, cleanedSrc, 'utf8');
+  // fs.writeFileSync(outputFile, prettier.format(cleanedSrc, prettierOptions), 'utf8');
+  fs.writeFileSync(outputFile, cleanedSrc, 'utf8');
   log.logSuccess(`Smooshed ${outputFile}`);
 }
 
@@ -291,8 +291,9 @@ function withoutJSDoc(text) {
 
 // HACK export declare type is not allowed in ts prettier
 function replaceExportDeclareType(text) {
-  const re = /export declare type /g;
-  return text.replace(re, 'export type ');
+  const reT = /^export declare type /g;
+  const reI = /^export declate interface /g;
+  return text.replace(reT, 'export type ').replace(reI, 'export interface ');
 }
 
 module.exports = {
