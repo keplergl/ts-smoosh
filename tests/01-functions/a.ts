@@ -1,6 +1,6 @@
 /**
  * A function with a JSDoc type import that matches its name
- * @type {typeof import('./a').foo}
+
  */
 export function foo(bar: string, baz: number): {
     boo: number;

@@ -34,22 +34,27 @@ function returnSmooshed(base) {
 
   const resultFile = ts.createSourceFile(
     outputFile,
-    '',
+    "",
     ts.ScriptTarget.Latest,
     false,
     ts.ScriptKind.TSX
   );
-  const printer = ts.createPrinter({newLine: ts.NewLineKind.LineFeed});
 
-  const smooshedSrc = printer.printNode(ts.EmitHint.Unspecified, enrichedJsNode, resultFile);
+  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
 
-  return smooshedSrc;
+  const smooshedSrc = printer.printNode(
+    ts.EmitHint.Unspecified,
+    enrichedJsNode,
+    resultFile
+  );
+
+  return withoutJSDoc(smooshedSrc);
 }
 
 function parseDts(dtsFile) {
   const parsed = ts.createSourceFile(
     dtsFile,
-    fs.readFileSync(dtsFile, 'utf8'),
+    fs.readFileSync(dtsFile, "utf8"),
     ts.ScriptTarget.Latest
   );
 
@@ -58,25 +63,24 @@ function parseDts(dtsFile) {
   const declarations = {};
   const imports = [];
 
-  const aggregateDecl = statement => {
-    // console.log(statement);
+  const aggregateDecl = (statement) => {
     const kind = ts.SyntaxKind[statement.kind];
 
-    if (kind === 'TypeAliasDeclaration') {
+    if (kind === "TypeAliasDeclaration") {
       declarations[getIdentifierName(statement)] = statement.type;
       typeAliases.push(statement);
       return;
     }
-    if (kind === 'ImportDeclaration') {
+    if (kind === "ImportDeclaration") {
       imports.push(statement);
       return;
     }
 
-    if (kind === 'FirstStatement') {
+    if (kind === "FirstStatement") {
       return statement.declarationList.declarations.map(aggregateDecl);
     }
 
-    if (!kind.endsWith('Declaration')) {
+    if (!kind.endsWith("Declaration")) {
       const message = `Unexpected statement kind "${kind}" in type definition file "${dtsFile}"`;
       return console.warn(message);
     } else {
@@ -86,29 +90,30 @@ function parseDts(dtsFile) {
 
   parsed.statements.forEach(aggregateDecl);
 
-  return {typeAliases, declarations, imports};
+  return { typeAliases, declarations, imports };
 }
 
 function enrichJs(jsFile, dts) {
   const parsed = ts.createSourceFile(
     jsFile,
-    fs.readFileSync(jsFile, 'utf8'),
+    fs.readFileSync(jsFile, "utf8"),
     ts.ScriptTarget.Latest
   );
 
-  const findSource = node => {
+  const findSource = (node) => {
     let typeSource = null;
 
     // First, search for a jsdoc tag with the type, like:
     // @type {typeof import('./b').Noop}
     if (node.jsDoc) {
-      const typeTag =
-        node.jsDoc[0].tags && node.jsDoc[0].tags.find(tag => tag.tagName.escapedText === 'type');
+      const typeTag = (node.jsDoc[0].tags || []).find(
+        (tag) => tag.tagName.escapedText === "type"
+      );
       if (typeTag) {
         const fileName = typeTag.typeExpression.type.argument.literal.text;
         const identifier = typeTag.typeExpression.type.qualifier.escapedText;
         const dir = path.dirname(jsFile);
-        const fullPath = path.resolve(dir, fileName + '.d.ts');
+        const fullPath = path.resolve(dir, fileName + ".d.ts");
         const importedDts = parseDts(fullPath);
         const importedType = importedDts.declarations[identifier];
         if (!importedType) {
@@ -129,24 +134,40 @@ function enrichJs(jsFile, dts) {
     return typeSource;
   };
 
-  const transformer = context => {
+  const transformer = (context) => {
     let importsToFind = [];
-    return rootNode => {
+    return (rootNode) => {
       function visit(node) {
         const kind = ts.SyntaxKind[node.kind];
         importsToFind = importsToFind.concat(
           (node.jsDoc || [])
-            .flatMap(d => (d.tags || []).filter(tag => tag.tagName.escapedText === 'typedef'))
-            .map(typeTag => {
-              const fileName = typeTag.typeExpression.type.argument.literal.text;
-              const identifier = typeTag.typeExpression.type.qualifier.escapedText;
-              return {fileName, identifier};
+            .flatMap((d) =>
+              (d.tags || []).filter((tag) => tag.tagName.escapedText === 'typedef')
+            )
+            .flatMap((typeTag) => {
+              const fileName =
+                typeTag.typeExpression.type.argument.literal.text;
+              const identifier =
+                typeTag.typeExpression.type.qualifier.escapedText;
+
+              // skip adding imports for js/d.ts pairs. We automatically merge imports
+              // for that below.
+              if (
+                jsFile ===
+                path.join(path.dirname(jsFile), fileName) + '.js'
+              ) {
+                return [];
+              }
+
+              return [{ fileName, identifier }];
             })
         );
+
         //
-        if (kind.endsWith('Declaration')) {
-          if (kind === 'FunctionDeclaration') {
+        if (kind.endsWith("Declaration")) {
+          if (kind === "FunctionDeclaration") {
             const typeSource = findSource(node);
+            delete node.jsDoc
             if (typeSource) {
               return ts.factory.updateFunctionDeclaration(
                 node,
@@ -155,22 +176,39 @@ function enrichJs(jsFile, dts) {
                 node.asteriskToken,
                 node.name,
                 typeSource.typeParameters,
-                typeSource.parameters,
+                node.parameters.map((p, i) =>
+                  ts.factory.updateParameterDeclaration(
+                    p,
+                    p.decorators,
+                    p.modifiers,
+                    p.dotDotDotToken,
+                    p.name,
+                    p.questionToken,
+                    typeSource.parameters[i].type.typeName
+                      ? // If the node has a name, we clone it. Referencing the type nodes from the
+                        // d.ts file directly seems to break code comments.
+                        ts.factory.createTypeReferenceNode(
+                          typeSource.parameters[i].type.typeName.escapedText
+                        )
+                      : // this should be a built-in type (like `string`, `number`, etc.)
+                        typeSource.parameters[i].type,
+                    p.initializer
+                  )
+                ),
                 typeSource.type,
                 node.body
               );
             }
             return node;
-          } else if (kind === 'VariableDeclaration') {
+          } else if (kind === "VariableDeclaration") {
             const typeSource = findSource(node);
             if (typeSource) {
               // Account for the case where the d.ts file is a fn decl,
               // but this file is a variable decl
               if (
-                ts.SyntaxKind[typeSource.kind] === 'FunctionDeclaration' &&
-                ts.SyntaxKind[node.initializer.kind] === 'ArrowFunction'
+                ts.SyntaxKind[typeSource.kind] === "FunctionDeclaration" &&
+                ts.SyntaxKind[node.initializer.kind] === "ArrowFunction"
               ) {
-                console.log(typeSource);
                 return ts.factory.updateVariableDeclaration(
                   node,
                   node.name,
@@ -206,12 +244,9 @@ function enrichJs(jsFile, dts) {
       }
       const newRoot = ts.visitNode(rootNode, visit);
 
-      // append all the types here.
+      // TODO: should we dedupe/combine these imports?
 
-      // TODO: dedupe these
-      console.log(importsToFind);
-
-      const importsForTypes = importsToFind.map(({identifier, fileName}) =>
+      const importsForTypes = importsToFind.map(({ identifier, fileName }) =>
         ts.factory.createImportDeclaration(
           undefined,
           undefined,
@@ -219,7 +254,10 @@ function enrichJs(jsFile, dts) {
             true,
             undefined,
             ts.factory.createNamedImports([
-              ts.factory.createImportSpecifier(undefined, ts.factory.createIdentifier(identifier))
+              ts.factory.createImportSpecifier(
+                undefined,
+                ts.factory.createIdentifier(identifier)
+              ),
             ])
           ),
           ts.factory.createStringLiteral(fileName)
@@ -230,7 +268,7 @@ function enrichJs(jsFile, dts) {
         ...dts.imports,
         ...importsForTypes,
         ...dts.typeAliases,
-        ...newRoot.statements
+        ...newRoot.statements,
       ]);
     };
   };
@@ -242,7 +280,15 @@ function getIdentifierName(node) {
   return node.name.escapedText;
 }
 
+// Removing JSDoc comments post-hoc with a regex is less-than-ideal, but it does not
+// appear that there is a way to update nodes returned from the typescript compiler
+// with respect to JSDocs. I see APIs for creating new nodes, but no way to attach em to arbitrary fields.
+const RE = /^[ ]*\/?\*?\*?[ ]*\@(type|typedef)(.*)$/gm;
+function withoutJSDoc(text) {
+  return text.replace(RE, '');
+}
+
 module.exports = {
   smoosh,
-  returnSmooshed
+  returnSmooshed,
 };

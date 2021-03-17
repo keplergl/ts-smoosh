@@ -1,3 +1,4 @@
+import {x} from './z';
 
 // TYPE IMPORTS
 /** @typedef {import('./a').Foo} Foo */
