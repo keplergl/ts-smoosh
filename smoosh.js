@@ -2,6 +2,7 @@ const ts = require('typescript');
 const fs = require('fs');
 const path = require('path');
 const log = require('./log');
+
 const prettier = require('prettier');
 const prettierConfig = require('../../.prettierrc');
 const prettierOptions = {...prettierConfig, parser: 'babel'};
@@ -11,22 +12,18 @@ const suffix = 'ts';
 /**
  * Writes the result of smooshing to a file
  */
-function smoosh(base) {
-  const smooshedSrc = returnSmooshed(base);
+function smoosh(base, options = {}) {
+  const smooshedSrc = returnSmooshed(base, options);
 
-  // cleanup
-  const cleanedSrc = replaceExportDeclareType(smooshedSrc);
   const outputFile = `./${base}.${suffix}`;
 
-  // @ts-ignore
-  fs.writeFileSync(outputFile, prettier.format(cleanedSrc, prettierOptions), 'utf8');
-  // fs.writeFileSync(outputFile, cleanedSrc, 'utf8');
+  fs.writeFileSync(outputFile, smooshedSrc, 'utf8');
   log.logSuccess(`Smooshed ${outputFile}`);
 }
 
 const declDoesntExist = {typeAliases: [], declarations: [], imports: []};
 
-function returnSmooshed(base) {
+function returnSmooshed(base, options = {}) {
   const dtsFile = `${base}.d.ts`;
   // TODO(btford): log a warning here?
   const decls = fs.existsSync(dtsFile) ? parseDts(dtsFile) : declDoesntExist;
@@ -48,7 +45,9 @@ function returnSmooshed(base) {
 
   const smooshedSrc = printer.printNode(ts.EmitHint.Unspecified, enrichedJsNode, resultFile);
 
-  return withoutJSDoc(smooshedSrc);
+  const cleanedSrc = replaceExportDeclareType(withoutJSDoc(smooshedSrc));
+  // @ts-ignore
+  return options.prettier ? prettier.format(cleanedSrc, prettierOptions) : cleanedSrc;
 }
 
 function parseDts(dtsFile) {
@@ -117,7 +116,7 @@ function enrichJs(jsFile, dts) {
         const fileName = typeTag.typeExpression.type.argument.literal.text;
         const identifier = typeTag.typeExpression.type.qualifier.escapedText;
         const dir = path.dirname(jsFile);
-        const fullPath = path.resolve(dir, fileName + '.d.ts');
+        const fullPath = path.resolve(dir, `${fileName}.d.ts`);
         const importedDts = parseDts(fullPath);
         const importedType = importedDts.declarations[identifier];
         if (!importedType) {
@@ -152,7 +151,10 @@ function enrichJs(jsFile, dts) {
 
               // skip adding imports for js/d.ts pairs. We automatically merge imports
               // for that below.
-              if (jsFile === path.join(path.dirname(jsFile), fileName) + '.js') {
+              if (
+                path.resolve(jsFile) ===
+                path.resolve(`${path.join(path.dirname(jsFile), fileName)}.js'`)
+              ) {
                 return [];
               }
 
@@ -276,9 +278,9 @@ function enrichJs(jsFile, dts) {
 
 function cloneType(node) {
   if (!node.type) {
-    console.log(node)
+    console.log(node);
   }
-  return node.type.typeName
+  return node.type && node.type.typeName
     ? // If the node has a name, we clone it. Referencing the type nodes from the
       // d.ts file directly seems to break code comments.
       ts.factory.createTypeReferenceNode(node.type.typeName.escapedText)

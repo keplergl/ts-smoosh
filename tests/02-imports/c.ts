@@ -3,6 +3,6 @@
 
  */
 function c(a: number, b: number): number {
-    console.log("haha hi");
-    return a + b;
+  console.log('haha hi');
+  return a + b;
 }

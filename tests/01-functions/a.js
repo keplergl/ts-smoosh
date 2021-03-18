@@ -2,11 +2,8 @@
  * A function with a JSDoc type import that matches its name
  * @type {typeof import('./a').foo}
  */
- export function foo(
-  bar,
-  baz
-)  {
-  return {boo: baz}
+export function foo(bar, baz) {
+  return {boo: baz};
 }
 
 // A function with no type import
