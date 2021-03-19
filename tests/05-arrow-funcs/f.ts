@@ -1,10 +1,10 @@
-export type State = {
-  a: string
-};
-export type Action = {
-  payload: string
-};
+import Action from 'redux-actions';
 
-export const createMapUpdater = (state: State, action: Action): State => {
+export type State = {
+  a: string;
+};
+export type Payload = string
+
+export const createMapUpdater = (state: State, action: Action<Payload>): State => {
   return state;
 };
