@@ -168,6 +168,7 @@ function enrichJs(jsFile, dts) {
             const typeSource = findSource(node);
             delete node.jsDoc;
             if (typeSource) {
+
               return ts.factory.updateFunctionDeclaration(
                 node,
                 node.decorators,

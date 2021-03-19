@@ -85,14 +85,14 @@ Test cases live in various directories in `./tests`. Tests run by comparing the 
 Here are some limitations and drawbacks of the scripts
 
 #### 1. Missing empty line inside functions
-Typescript compiler [doesnt preserver empty lines](https://github.com/microsoft/TypeScript/issues/843). When ts-smoosh injects types into functions, It will replace the existing JSDoc comment with am empty, but empty lines inside the functions will be missing. So are empty lines between variable declarations that does not have JSDoc types. More improvements can be made such as insert empty before return statements.
+Typescript compiler [doesn't preserve empty lines](https://github.com/microsoft/TypeScript/issues/843). When ts-smoosh injects types into functions, it will replace the existing JSDoc comment with an empty line, but empty lines inside the functions will be missing. So are empty lines between variable declarations that does not have JSDoc types. More improvements can be made such as insert empty before return statements.
 
 #### 2. Mixed import and export statement.
 
-When type decl are injected, it might comes between import statements. Some manual cleanup requires.
+When type decl are injected, they might come between import statements. Some manual cleanup is required.
 
 #### 3. Unsupported JSDoc `@returns` `@params` tags
-Only type declaration with the `@type` tag is supported. Some functions uses seperate tags such as below, future work can be done to support it.
+Only type declarations with the `@type` tag are supported. Some functions use separate tags such as below, future work can be done to support it.
 ```js
 /**
  * Currently not supported
@@ -107,7 +107,7 @@ function defaultLayersForGeoKey(dataset, geoKey) {...}
 
 # Notes
 
-Here are articles and docs I that were helpful when writing this script.
+Here are articles and docs that were helpful when writing this script.
 
 - [Using the Compiler API](https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API)
 - [Blog post about using TS's parser directly](https://medium.com/allenhwkim/how-to-parse-typescript-from-source-643387971f4e)
