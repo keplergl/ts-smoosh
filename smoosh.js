@@ -284,7 +284,7 @@ function cloneType(node) {
   return node.type && node.type.typeName
     ? // If the node has a name, we clone it. Referencing the type nodes from the
       // d.ts file directly seems to break code comments.
-      ts.factory.createTypeReferenceNode(node.type.typeName.escapedText)
+      ts.factory.createTypeReferenceNode(node.type.typeName.escapedText, node.type.typeArguments)
     : // this should be a built-in type (like `string`, `number`, etc.)
       node.type;
 }
